@@ -10,7 +10,9 @@
 
 using namespace std;
 
+/* Подставьте вашу реализацию класса SearchServer сюда */
 const int MAX_RESULT_DOCUMENT_COUNT = 5;
+const double MIN_VALUE = 1e-6;
 
 struct Document {
     int id;
@@ -71,7 +73,7 @@ public:
 
         sort(matched_documents.begin(), matched_documents.end(),
              [](const Document& lhs, const Document& rhs) {
-                if (abs(lhs.relevance - rhs.relevance) < 1e-6) {
+                if (abs(lhs.relevance - rhs.relevance) < MIN_VALUE) {
                     return lhs.rating > rhs.rating;
                 } else {
                     return lhs.relevance > rhs.relevance;
@@ -246,6 +248,7 @@ private:
     }
 };
 
+
 /* 
    Подставьте сюда вашу реализацию макросов 
    ASSERT, ASSERT_EQUAL, ASSERT_EQUAL_HINT, ASSERT_HINT и RUN_TEST
@@ -320,6 +323,10 @@ void TestExcludeStopWordsFromAddedDocumentContent() {
                     "Stop words must be excluded from documents"s);
     }
 }
+
+/*
+Разместите код остальных тестов здесь
+*/
 
 void TestExcludeMinusWords() {
     string strDoc[3];
@@ -490,6 +497,10 @@ void TestPredicates() {
 
         ASSERT_EQUAL(server.FindTopDocuments("people tend"s,
                     DocumentStatus::BANNED).size(), 1);
+        ASSERT_EQUAL(server.FindTopDocuments("awake"s,
+                    DocumentStatus::REMOVED).size(), 1);
+        ASSERT_EQUAL(server.FindTopDocuments("worthy sum"s,
+                    DocumentStatus::IRRELEVANT).size(), 1);
 
     }
 }
@@ -598,10 +609,12 @@ void TestTF_IDF() {
         for (const Document& docDocument : 
              server.FindTopDocuments(strQuery_plus_words_only)) {
             ASSERT(abs(mapDocument_relevances.at(docDocument.id)
-                       - docDocument.relevance) < 1e-6);
+                       - docDocument.relevance) < MIN_VALUE);
         }
     }    
 }
+
+// Функция TestSearchServer является точкой входа для запуска тестов
 
 template <typename FunctionPredicate>
 void RunTestImpl(const FunctionPredicate& function,
@@ -611,8 +624,6 @@ void RunTestImpl(const FunctionPredicate& function,
 }
 
 #define RUN_TEST(test) RunTestImpl(test, #test)
-
-// Функция TestSearchServer является точкой входа для запуска тестов
 
 void TestSearchServer() {
     RUN_TEST(TestExcludeStopWordsFromAddedDocumentContent);
@@ -630,4 +641,5 @@ int main() {
     TestSearchServer();
     // Если вы видите эту строку, значит все тесты прошли успешно
     cout << "Search server testing finished"s << endl;
+    return 0;
 }
