@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <cmath>
 #include <map>
+#include <numeric>
 #include <vector>
 #include <set>
 #include <string>

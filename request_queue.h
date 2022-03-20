@@ -6,9 +6,7 @@
 
 class RequestQueue {
 public:
-    explicit RequestQueue(const SearchServer& search_server)
-        :search_server_(search_server)
-    {}
+    explicit RequestQueue(const SearchServer& search_server);
 
     template <typename DocumentPredicate>
     std::vector<Document> AddFindRequest(
@@ -24,9 +22,7 @@ public:
         return AddFindRequest(raw_query, DocumentStatus::ACTUAL);
     }
 
-    int GetNoResultRequests() const {
-        return requests_.size();
-    }
+    int GetNoResultRequests() const;
 private:
     std::deque<bool> requests_;
     const static int min_in_day_ = 1440;

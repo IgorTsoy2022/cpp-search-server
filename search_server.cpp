@@ -77,16 +77,6 @@ SearchServer::GetWordFrequencies(int document_id) const {
     return result;
 }
 
-/*
-const std::map<std::vector<std::string>, int>
-SearchServer::GetWordDocuments() const {
-    map<std::vector<std::string>, int> result;
-    for (const auto& [key, value] : word_to_document_freqs_) {
-    
-    }
-}
-*/
-
 bool SearchServer::CompareDocumentsWords(int id1,
                                          int id2) const {
     std::vector<std::string> v1, v2;
@@ -186,11 +176,8 @@ int SearchServer::ComputeAverageRating(
     if (ratings.empty()) {
         return 0;
     }
-    int rating_sum = 0;
-    for (const int rating : ratings) {
-        rating_sum += rating;
-    }
-    return rating_sum / static_cast<int>(ratings.size());
+    return std::accumulate(ratings.begin(), ratings.end(), 0) /
+           static_cast<int>(ratings.size());
 }
 
 SearchServer::QueryWord SearchServer::ParseQueryWord(

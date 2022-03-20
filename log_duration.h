@@ -15,20 +15,10 @@ public:
     // с помощью using для удобства
     using Clock = std::chrono::steady_clock;
 
-    LogDuration(const std::string& id, std::ostream& stream = std::cerr)
-        : id_(id), stream_(stream)
-    {}
+    LogDuration(const std::string& id,
+                std::ostream& stream = std::cerr);
 
-    ~LogDuration() {
-        using namespace std::chrono;
-        using namespace std::literals;
-
-        const auto end_time = Clock::now();
-        const auto dur = end_time - start_time_;
-        stream_ << id_ << ": "s
-            << duration_cast<milliseconds>(dur).count()
-            << " ms"s << std::endl;
-    }
+    ~LogDuration();
 
 private:
     const std::string id_;
