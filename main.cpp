@@ -14,7 +14,7 @@ void AddDocument(SearchServer& search_server, int document_id,
             status, ratings);
     }
     catch (const std::invalid_argument& e) {
-        std::cout << "ÐžÑˆÐ¸Ð±ÐºÐ° Ð´Ð¾Ð±Ð°Ð²Ð»ÐµÐ½Ð¸Ñ Ð´Ð¾ÐºÑƒÐ¼ÐµÐ½Ñ‚Ð° "s
+        std::cout << "Îøèáêà äîáàâëåíèÿ äîêóìåíòà "s
             << document_id << ": "s << e.what()
             << std::endl;
     }

@@ -5,17 +5,16 @@
 #include "string_processing.h"
 
 #include <algorithm>
-#include <cassert>
 #include <cmath>
 #include <execution>
-#include <functional>
+#include <list>
 #include <map>
-#include <numeric>
 
 using namespace std::string_literals;
 using namespace std::string_view_literals;
 
 const int MAX_RESULT_DOCUMENT_COUNT = 5;
+const int CONCURRENT_MAP_BUCKETS = 101;
 const double MIN_REAL_VALUE = 1e-6;
 
 class SearchServer {
@@ -30,11 +29,11 @@ public:
 
     int GetDocumentCount() const;
 
-    std::vector<int>::const_iterator begin() const;
+    std::set<int>::const_iterator begin() const;
 
-    std::vector<int>::const_iterator end() const;
+    std::set<int>::const_iterator end() const;
 
-    bool CompareDocumentsWords(int id1, int id2) const;
+    std::list<int> GetDuplicates() const;
 
     const std::map<std::string_view, double>&
     GetWordFrequencies(int document_id) const;
@@ -48,9 +47,7 @@ public:
     void RemoveDocument(const std::execution::parallel_policy& policy,
                         int document_id);
 
-
 // FindTopDocuments
-
     template <typename Predicate>
     std::vector<Document>
     FindTopDocuments(const std::string_view raw_query,
@@ -79,7 +76,6 @@ public:
     std::vector<Document>
     FindTopDocuments(const ExecutionPolicy& policy,
                      const std::string_view raw_query) const;
-
 
 // MatchDocument
     std::tuple<std::vector<std::string_view>, DocumentStatus>
@@ -118,7 +114,7 @@ private:
     std::map<int, std::map<std::string_view, double>>
     document_to_word_freqs_;
     std::map<int, DocumentData> documents_;
-    std::vector<int> document_ids_;
+    std::set<int> document_ids_;
 
     bool IsStopWord(const std::string_view word) const;
 
@@ -131,20 +127,17 @@ private:
 
     static int ComputeAverageRating(const std::vector<int>& ratings);
 
-    // Existence required
+// Existence required
     double ComputeWordInverseDocumentFreq(
            const std::string_view word) const;
 
     QueryWord ParseQueryWord(const std::string_view text) const;
 
 // ParseQuery
-    Query ParseQuery(const std::string_view text) const;
-
-    Query ParseQuery(const std::execution::sequenced_policy& policy,
-                     const std::string_view text) const;
-
-    Query ParseQuery(const std::execution::parallel_policy& policy,
-                     const std::string_view text) const;
+    template <typename ExecutionPolicy>
+    Query ParseQuery(const ExecutionPolicy& policy,
+                     const std::string_view text,
+                     const bool make_unique = true) const;
 
 // FindAllDocuments
     template <typename Predicate>
@@ -179,14 +172,12 @@ SearchServer::SearchServer(const StringContainer& stop_words)
 }
 
 // FindTopDocuments
-
 template <typename Predicate>
 std::vector<Document>
 SearchServer::FindTopDocuments(
               const std::string_view raw_query,
               Predicate document_predicate) const {
-    const auto query = ParseQuery(raw_query);
-
+    const auto query = ParseQuery(std::execution::seq, raw_query);
     auto matched_documents = FindAllDocuments(query,
                                               document_predicate);
 
@@ -214,9 +205,7 @@ SearchServer::FindTopDocuments(
               const ExecutionPolicy& policy,          
               const std::string_view raw_query,
               Predicate document_predicate) const {
-
-    const Query query = ParseQuery(/*std::execution::seq,*/ raw_query);
-
+    const Query query = ParseQuery(policy, raw_query);
     std::vector<Document>
     matched_documents = FindAllDocuments(policy, query,
                                          document_predicate);
@@ -264,13 +253,57 @@ SearchServer::FindTopDocuments(
 
 // PRIVATE
 
+// ParseQuery
+template <typename ExecutionPolicy>
+SearchServer::Query
+SearchServer::ParseQuery(const ExecutionPolicy& policy,
+                         const std::string_view text,
+                         const bool make_unique) const {
+    Query result;
+    bool has_minus = false;
+    bool has_plus = false;
+    const auto& words = SplitIntoWords(text);
+    for_each(/*policy,*/ words.begin(), words.end(),
+             [this, &has_minus, &has_plus, &result]
+             (std::string_view word) {
+                 const auto query_word = ParseQueryWord(word);
+                 if (!query_word.is_stop) {
+                     if (query_word.is_minus) {
+                         has_minus = true;
+                         result.minus_words.push_back(query_word.data);
+                     } else {
+                         has_plus = true;
+                         result.plus_words.push_back(query_word.data);
+                     }
+                 }
+             });
+
+    if (!make_unique) {
+        return result;
+    }
+
+    if (has_minus) {
+        std::sort(policy, result.minus_words.begin(),
+                  result.minus_words.end());
+        auto it = std::unique(policy, result.minus_words.begin(),
+                              result.minus_words.end());
+        result.minus_words.erase(it, result.minus_words.end());
+    }
+    if (has_plus) {
+        std::sort(policy, result.plus_words.begin(),
+                  result.plus_words.end());
+        auto it = std::unique(policy, result.plus_words.begin(),
+                              result.plus_words.end());
+        result.plus_words.erase(it, result.plus_words.end());
+    }
+    return result;
+}
+
 // FindAllDocuments
 template <typename Predicate>
 std::vector<Document>
-SearchServer::FindAllDocuments(
-              const Query& query,
-              Predicate document_predicate) const {
-
+SearchServer::FindAllDocuments(const Query& query,
+                               Predicate document_predicate) const {
     std::map<int, double> document_to_relevance;
 
     for (const std::string_view word : query.plus_words) {
@@ -333,8 +366,7 @@ SearchServer::FindAllDocuments(
               const std::execution::parallel_policy& policy,
               const Query& query,
               Predicate document_predicate) const {
-
-    ConcurrentMap<int, double> relevances(101);
+    ConcurrentMap<int, double> relevances(CONCURRENT_MAP_BUCKETS);
 
     for_each (policy,
               query.plus_words.begin(),
